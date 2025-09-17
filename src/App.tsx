@@ -18,6 +18,20 @@ class MyTranslationPipeline {
   }
 }
 
+const NLLB_LANGUAGE_MAP = {
+  en: "eng_Latn",
+  fr: "fra_Latn",
+  es: "spa_Latn",
+  de: "deu_Latn",
+  zh: "zho_Hans",
+  "zh-TW": "zho_Hant",
+  // ...other mappings
+};
+
+function getLanguageCode(lang) {
+  return NLLB_LANGUAGE_MAP[lang] || "eng_Latn";
+}
+
 function App() {
   // async function test() {
   //   // let model_name = "HuggingFaceTB/SmolLM2-135M-Instruct";
@@ -65,13 +79,14 @@ function App() {
         console.log(x);
       });
 
-      setTranslator(translator);
+      // setTranslator(translator);
 
       if (translator) {
-        const output = await translator("Yes", {
-          tgt_lang: "ace_Arab",
-          src_lang: "ace_Latn",
+        const result = await translator("Hello I am fine thankyou", {
+          src_lang: getLanguageCode("en"),
+          tgt_lang: getLanguageCode("fr"),
         });
+        console.log({ result });
       }
     }
     run();

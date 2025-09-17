@@ -1,0 +1,6 @@
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
+  - onnxruntime-node
+  - protobufjs
+  - sharp

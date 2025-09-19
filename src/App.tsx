@@ -77,11 +77,13 @@ function App() {
       <button onClick={handleSubmit} aria-busy={isLoading} disabled={isLoading}>
         Submit
       </button>
-      <div
-        aria-busy={modelStatus.status === "progress"}
-        style={{ textTransform: "capitalize", fontSize: "0.8rem" }}
-      >
-        Model Status: {modelStatus.status} - {modelStatus.progress}%
+      <div>
+        <kbd
+          aria-busy={modelStatus.status === "progress"}
+          style={{ textTransform: "capitalize" }}
+        >
+          Model Status: {modelStatus.status} - {modelStatus.progress}%
+        </kbd>
       </div>
       {outputText && <article>{outputText}</article>}
     </div>

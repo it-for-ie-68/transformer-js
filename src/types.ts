@@ -14,6 +14,7 @@ export type PayloadStatusText =
 export interface ModelStatus {
   status: ModelStatusText;
   progress: number;
+  modelName: string;
 }
 
 export interface PayloadFromMain {

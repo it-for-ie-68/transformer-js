@@ -3,13 +3,21 @@ import {
   TextStreamer,
   type TextGenerationPipeline,
   type ProgressCallback,
+  type Message,
 } from "@huggingface/transformers";
-import { type PayloadFromWorker } from "./types";
+import { type PayloadFromWorker, type PayloadFromMain } from "./types";
 class Model {
   static task = "text-generation" as const;
+
+  // -----------------------------------------------------------
+  // static model = "Xenova/distilgpt2";
+  // static modelOptions = { device: "wasm" };
+  // -----------------------------------------------------------
   static model = "HuggingFaceTB/SmolLM2-135M-Instruct";
-  // static model = "HuggingFaceTB/SmolLM2-1.7B-Instruct";
-  // static model = "Xenova/gpt2";
+  static modelOptions = { device: "wasm" };
+  // -----------------------------------------------------------
+  // static model = "onnx-community/Phi-3.5-mini-instruct-onnx-web";
+  // static modelOptions = { dtype: "q4f16", device: "webgpu" };
 
   private static instance: TextGenerationPipeline | null = null;
   public static async getInstance(progress_callback: ProgressCallback) {
@@ -17,17 +25,11 @@ class Model {
       // @ts-ignore
       this.instance = await pipeline(this.task, this.model, {
         progress_callback,
-        dtype: "q4",
-        device: "wasm",
+        ...this.modelOptions,
       });
     }
     return this.instance;
   }
-}
-
-interface PayloadFromMain {
-  inputText: string;
-  context: string;
 }
 
 onmessage = async (e: MessageEvent<PayloadFromMain>) => {
@@ -45,7 +47,7 @@ onmessage = async (e: MessageEvent<PayloadFromMain>) => {
     } else {
       progress = 0;
     }
-    const payload = { status: _info.status, progress };
+    const payload = { status: _info.status, progress, modelName: Model.model };
     postMessage({
       status: "load_model",
       payload: payload,
@@ -63,20 +65,29 @@ onmessage = async (e: MessageEvent<PayloadFromMain>) => {
     },
   });
 
-  const messages = [
-    {
-      role: "system",
-      content: e.data.context ?? "",
-    },
-    {
-      role: "user",
-      content: e.data.inputText ?? "",
-    },
-  ];
+  let messages: Message[] | string;
+  if (
+    Model.model === "HuggingFaceTB/SmolLM2-135M-Instruct" ||
+    Model.model === "onnx-community/Phi-3.5-mini-instruct-onnx-web"
+  ) {
+    messages = [
+      {
+        role: "system",
+        content: e.data.context ?? "",
+      },
+      {
+        role: "user",
+        content: e.data.inputText ?? "",
+      },
+    ];
+  } else {
+    messages = e.data.inputText;
+  }
 
   await generator(messages, {
-    max_new_tokens: 200, // Limit the length of the generated text
+    max_new_tokens: 100, // Limit the length of the generated text
     temperature: 0.7, // Control the randomness of the generation
+    repetition_penalty: 2.0, // Help prevent model from outputting words in loop.
     streamer: streamer,
   });
 

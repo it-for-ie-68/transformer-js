@@ -11,6 +11,7 @@ function App() {
   const [modelStatus, setModelStatus] = useState<ModelStatus>({
     status: "initiate",
     progress: 0,
+    modelName: "",
   });
   const [outputText, setOutputText] = useState("");
   const [inputText, setInputText] = useState("");
@@ -73,18 +74,31 @@ function App() {
   return (
     <div className="container">
       <h1>Text Generation</h1>
-      <input type="text" onChange={handleType} onKeyDown={handleKeyDown} />
-      <button onClick={handleSubmit} aria-busy={isLoading} disabled={isLoading}>
+      <input
+        type="text"
+        onChange={handleType}
+        onKeyDown={handleKeyDown}
+        disabled={isLoading}
+      />
+      <button
+        onClick={handleSubmit}
+        aria-busy={isLoading}
+        disabled={isLoading}
+        style={{ marginBottom: "1rem" }}
+      >
         Submit
       </button>
-      <div>
-        <kbd
-          aria-busy={modelStatus.status === "progress"}
-          style={{ textTransform: "capitalize" }}
-        >
-          Model Status: {modelStatus.status} - {modelStatus.progress}%
-        </kbd>
-      </div>
+      {modelStatus.modelName && (
+        <div>
+          <kbd
+            aria-busy={modelStatus.status === "progress"}
+            style={{ textTransform: "capitalize" }}
+          >
+            {modelStatus.modelName} ({modelStatus.status}:{modelStatus.progress}
+            %)
+          </kbd>
+        </div>
+      )}
       {outputText && <article>{outputText}</article>}
     </div>
   );

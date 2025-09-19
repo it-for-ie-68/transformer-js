@@ -4,16 +4,33 @@ import {
   AutoModelForCausalLM,
   pipeline,
   TextStreamer,
+  type TextGenerationPipeline,
+  type ProgressCallback,
 } from "@huggingface/transformers";
 import { useState, useEffect } from "react";
 
-class MyTranslationPipeline {
-  static task = "translation";
-  static model = "Xenova/nllb-200-distilled-600M";
-  static instance = null;
+// class MyTranslationPipeline {
+//   static task = "translation";
+//   static model = "Xenova/nllb-200-distilled-600M";
+//   static instance = null;
 
-  static async getInstance(progress_callback = null) {
-    this.instance ??= pipeline(this.task, this.model, { progress_callback });
+//   static async getInstance(progress_callback = null) {
+//     this.instance ??= pipeline(this.task, this.model, { progress_callback });
+//     return this.instance;
+//   }
+// }
+
+class SingleModel {
+  static task = "text-generation" as const;
+  static model = "HuggingFaceTB/SmolLM2-135M-Instruct";
+  // private static instance: Awaited<ReturnType<typeof pipeline>> | null = null;
+  private static instance: TextGenerationPipeline | null = null;
+  public static async getInstance(progress_callback: ProgressCallback) {
+    if (!this.instance) {
+      this.instance = await pipeline(SingleModel.task, SingleModel.model, {
+        progress_callback,
+      });
+    }
     return this.instance;
   }
 }
@@ -89,7 +106,45 @@ function App() {
         console.log({ result });
       }
     }
-    run();
+
+    async function run2() {
+      const generator = await SingleModel.getInstance((x) => {
+        // We also add a progress callback to the pipeline so that we can
+        // track model loading.
+        console.log(x);
+      });
+
+      const streamer = new TextStreamer(generator.tokenizer, {
+        skip_prompt: true,
+        skip_special_tokens: true,
+        callback_function: function (text) {
+          console.log(text);
+          // self.postMessage({
+          //   status: "update",
+          //   output: text,
+          // });
+        },
+      });
+      // setTranslator(translator);
+      const prompt =
+        "Once upon a time, in a land far away, there lived a brave knight who";
+      if (generator) {
+        const result = await generator(prompt, {
+          max_new_tokens: 50, // Limit the length of the generated text
+          temperature: 0.7, // Control the randomness of the generation
+          streamer: streamer,
+        });
+        // console.log({ result });
+
+        // const result2 = await generator(result[0].generated_text, {
+        //   max_new_tokens: 50, // Limit the length of the generated text
+        //   temperature: 0.7, // Control the randomness of the generation
+        // });
+        // console.log({ result2 });
+      }
+    }
+
+    run2();
   }, []);
 
   // test();

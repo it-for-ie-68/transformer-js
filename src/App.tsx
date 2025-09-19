@@ -1,109 +1,73 @@
-import {
-  pipeline,
-  TextStreamer,
-  type TextGenerationPipeline,
-  type ProgressCallback,
-  type ProgressInfo,
-} from "@huggingface/transformers";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-class SingleModel {
-  static task = "text-generation" as const;
-  static model = "HuggingFaceTB/SmolLM2-135M-Instruct";
-  private static instance: TextGenerationPipeline | null = null;
-  public static async getInstance(progress_callback: ProgressCallback) {
-    if (!this.instance) {
-      // @ts-nocheck
-      this.instance = await pipeline(this.task, this.model, {
-        progress_callback,
-      });
-    }
-    return this.instance;
-  }
+interface ModelStatus {
+  status: "done" | "ready" | "progress" | "initiate" | "download";
+  progress: number;
 }
 
 function App() {
-  // const [generator, setGenerator] = useState<TextGenerationPipeline | null>(
-  //   null
-  // );
-  // const [streamer, setStreamer] = useState<TextStreamer | null>(null);
-  const [progress, setProgress] = useState<ProgressInfo | null>(null);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({
+    status: "initiate",
+    progress: 0,
+  });
   const [outputText, setOutputText] = useState("");
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [counter, setCounter] = useState(0);
+  const worker = useRef(null);
 
   useEffect(() => {
-    async function init() {
-      // const _generator = await SingleModel.getInstance((_info) => {
-      //   setProgress(_info);
-      // });
-      // setGenerator(_generator);
-      // const _streamer = new TextStreamer(_generator.tokenizer, {
-      //   skip_prompt: true,
-      //   skip_special_tokens: true,
-      //   callback_function: function (text) {
-      //     setOutputText((prev) => prev + text);
-      //   },
-      // });
-      // setStreamer(_streamer);
-    }
-    init();
-  }, []);
+    // Create the worker if it does not yet exist.
+    worker.current ??= new Worker(new URL("./worker.js", import.meta.url), {
+      type: "module",
+    });
+
+    // Create a callback function for messages from the worker thread.
+    const onMessageReceived = (e) => {
+      switch (e.data.status) {
+        case "load_model":
+          setModelStatus(e.data.payload);
+          break;
+        case "start_generate_text":
+          setIsLoading(true);
+          break;
+        case "update_text":
+          setOutputText((prev) => prev + e.data.payload);
+          break;
+        case "done_generate_text":
+          setIsLoading(false);
+          break;
+      }
+    };
+
+    // Attach the callback function as an event listener.
+    worker.current.addEventListener("message", onMessageReceived);
+
+    // Define a cleanup function for when the component is unmounted.
+    return () =>
+      worker.current.removeEventListener("message", onMessageReceived);
+  });
 
   function handleType(e: any) {
     setInputText(e.target.value.trim());
   }
 
   async function handleSubmit() {
-    // console.log({ generator, streamer, inputText });
     if (!inputText) return;
-
-    setIsLoading(true);
     setOutputText("");
-
-    const generator = await SingleModel.getInstance((_info) => {
-      setProgress(_info);
-    });
-
-    const streamer = new TextStreamer(generator.tokenizer, {
-      skip_prompt: true,
-      skip_special_tokens: true,
-      callback_function: function (text) {
-        setOutputText((prev) => prev + text);
-      },
-    });
-
-    const messages = [
-      {
-        role: "system",
-        content:
-          "Anutin Charnvirakul is a Thai politician and engineer who has served as the 32nd prime minister of Thailand since September, 2025 and as leader of the Bhumjaithai Party since 2012. He previously served as Deputy Prime Minister from 2019 to 2025, Minister of Public Health from 2019 to 2023, and Minister of the Interior from 2023 to 2025. He has also been a member of the House of Representatives since 2019.",
-      },
-      {
-        role: "user",
-        content: inputText,
-      },
-    ];
-    await generator(messages, {
-      max_new_tokens: 50, // Limit the length of the generated text
-      temperature: 0.7, // Control the randomness of the generation
-      streamer: streamer,
-    });
-
-    console.log("Done");
-    setIsLoading(false);
+    worker.current.postMessage({ inputText });
   }
 
   return (
     <div className="container">
       <h1>Text Generation</h1>
       <input type="text" onChange={handleType} />
-      <button onClick={handleSubmit}>Submit</button>
-      <article>{outputText}</article> {/* {JSON.stringify(progress)} */}
-      {isLoading ? "Loading..." : ""}
-      <button onClick={() => setCounter(counter + 1)}>Add</button>
-      {counter}
+      <button onClick={handleSubmit} disabled={isLoading}>
+        Submit
+      </button>
+      {outputText && <article>{outputText}</article>}
+      <article>
+        Model Status: {modelStatus.status} - {modelStatus.progress} %
+      </article>
     </div>
   );
 }

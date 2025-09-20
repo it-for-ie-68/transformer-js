@@ -1,4 +1,4 @@
-# LLM
+# transformer-js
 
 - `pnpm i @huggingface/transformers`
 - `pnpm approve-builds`

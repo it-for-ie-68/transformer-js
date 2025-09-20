@@ -1,154 +1,154 @@
+import { useState, useEffect, useRef } from "react";
 import {
-  // env,
-  AutoTokenizer,
-  AutoModelForCausalLM,
-  pipeline,
-  TextStreamer,
-  type TextGenerationPipeline,
-  type ProgressCallback,
-} from "@huggingface/transformers";
-import { useState, useEffect } from "react";
-
-// class MyTranslationPipeline {
-//   static task = "translation";
-//   static model = "Xenova/nllb-200-distilled-600M";
-//   static instance = null;
-
-//   static async getInstance(progress_callback = null) {
-//     this.instance ??= pipeline(this.task, this.model, { progress_callback });
-//     return this.instance;
-//   }
-// }
-
-class SingleModel {
-  static task = "text-generation" as const;
-  static model = "HuggingFaceTB/SmolLM2-135M-Instruct";
-  // private static instance: Awaited<ReturnType<typeof pipeline>> | null = null;
-  private static instance: TextGenerationPipeline | null = null;
-  public static async getInstance(progress_callback: ProgressCallback) {
-    if (!this.instance) {
-      this.instance = await pipeline(SingleModel.task, SingleModel.model, {
-        progress_callback,
-      });
-    }
-    return this.instance;
-  }
-}
-
-const NLLB_LANGUAGE_MAP = {
-  en: "eng_Latn",
-  fr: "fra_Latn",
-  es: "spa_Latn",
-  de: "deu_Latn",
-  zh: "zho_Hans",
-  "zh-TW": "zho_Hant",
-  // ...other mappings
-};
-
-function getLanguageCode(lang) {
-  return NLLB_LANGUAGE_MAP[lang] || "eng_Latn";
-}
+  type ModelStatus,
+  type PayloadFromWorker,
+  type PayloadFromMain,
+  type Language,
+  languages,
+} from "./types";
 
 function App() {
-  // async function test() {
-  //   // let model_name = "HuggingFaceTB/SmolLM2-135M-Instruct";
-  //   // let tokenizer = await AutoTokenizer.from_pretrained(model_name);
-  //   // let model = await AutoModelForCausalLM.from_pretrained(model_name, {
-  //   //   dtype: "q4f16",
-  //   //   device: "wasm",
-  //   // });
-  //   // let messages = [{ role: "user", content: "What is gravity?" }];
-  //   // let input_text = tokenizer.apply_chat_template(messages, {
-  //   //   add_generation_prompt: true,
-  //   //   return_dict: true,
-  //   // });
-  //   // console.log({ input_text });
-  //   // let outputs = await model.generate(input_text);
-  //   // let decoded = tokenizer.decode(outputs, { skip_special_tokens: true });
-  //   // console.log("Model Output: ", decoded);
-  //   // Allocate a pipeline for sentiment-analysis
-  //   // const generator = await pipeline("text-generation", "Xenova/gpt2");
-  //   // // Generate text (default parameters)
-  //   // const text = "Once upon a time,";
-  //   // const output = await generator(text);
-  //   // console.log({ output });
-  //   // [{'label': 'POSITIVE', 'score': 0.999817686}]
-  //   // const generator = await pipeline(
-  //   //   "text-generation",
-  //   //   "HuggingFaceTB/SmolLM2-135M-Instruct"
-  //   // ); // Define the messages for the instruction-tuned model
-  //   // const messages = [
-  //   //   { role: "system", content: "You are a helpful AI assistant." },
-  //   //   { role: "user", content: "What is actor critic in RL?" },
-  //   // ];
-  //   // // Generate a response with a maximum of 128 new tokens
-  //   // const output = await generator(messages, { max_new_tokens: 128 });
-  //   // console.log(output);
-  // }
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({
+    status: "initiate",
+    progress: 0,
+    modelName: "",
+  });
+  const [outputText, setOutputText] = useState("");
+  const [inputText, setInputText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [srcLang, setSrcLang] = useState<Language>("en");
+  const [tgtLang, setTgtLang] = useState<Language>("th");
+  const worker = useRef<Worker>(null);
 
-  const [translator, setTranslator] = useState<any>(null);
   useEffect(() => {
-    async function run() {
-      const translator = await MyTranslationPipeline.getInstance((x) => {
-        // We also add a progress callback to the pipeline so that we can
-        // track model loading.
-        console.log("here");
-        console.log(x);
-      });
+    // Create the worker if it does not yet exist.
+    worker.current ??= new Worker(new URL("./worker.js", import.meta.url), {
+      type: "module",
+    });
 
-      // setTranslator(translator);
-
-      if (translator) {
-        const result = await translator("Hello I am fine thankyou", {
-          src_lang: getLanguageCode("en"),
-          tgt_lang: getLanguageCode("fr"),
-        });
-        console.log({ result });
+    // Create a callback function for messages from the worker thread.
+    const onMessageReceived = (e: MessageEvent<PayloadFromWorker>) => {
+      switch (e.data.status) {
+        case "load_model":
+          if (typeof e.data.payload === "string") break;
+          setModelStatus(e.data.payload);
+          break;
+        case "start_generate_text":
+          setIsLoading(true);
+          break;
+        case "update_text":
+          if (typeof e.data.payload !== "string") break;
+          setOutputText((prev) => prev + e.data.payload);
+          break;
+        case "done_generate_text":
+          setIsLoading(false);
+          break;
       }
+    };
+
+    // Attach the callback function as an event listener.
+    worker.current.addEventListener("message", onMessageReceived);
+
+    // Define a cleanup function for when the component is unmounted.
+    return () =>
+      worker.current?.removeEventListener("message", onMessageReceived);
+  });
+
+  function handleType(e: any) {
+    setInputText(e.target.value.trim());
+  }
+
+  async function handleSubmit() {
+    if (!inputText || !worker.current) return;
+    setOutputText("");
+    worker.current.postMessage({
+      inputText,
+      srcLang,
+      tgtLang,
+    } as PayloadFromMain);
+  }
+
+  function handleKeyDown(e: any) {
+    if (e.key === "Enter") {
+      handleSubmit();
     }
+  }
 
-    async function run2() {
-      const generator = await SingleModel.getInstance((x) => {
-        // We also add a progress callback to the pipeline so that we can
-        // track model loading.
-        console.log(x);
-      });
-
-      const streamer = new TextStreamer(generator.tokenizer, {
-        skip_prompt: true,
-        skip_special_tokens: true,
-        callback_function: function (text) {
-          console.log(text);
-          // self.postMessage({
-          //   status: "update",
-          //   output: text,
-          // });
-        },
-      });
-      // setTranslator(translator);
-      const prompt =
-        "Once upon a time, in a land far away, there lived a brave knight who";
-      if (generator) {
-        const result = await generator(prompt, {
-          max_new_tokens: 50, // Limit the length of the generated text
-          temperature: 0.7, // Control the randomness of the generation
-          streamer: streamer,
-        });
-        // console.log({ result });
-
-        // const result2 = await generator(result[0].generated_text, {
-        //   max_new_tokens: 50, // Limit the length of the generated text
-        //   temperature: 0.7, // Control the randomness of the generation
-        // });
-        // console.log({ result2 });
-      }
+  function handleSelect(e: any) {
+    const value = e.target.value as Language;
+    if (!languages.includes(value)) return;
+    if (e.target.name === "srcLang") {
+      setSrcLang(value);
+    } else if (e.target.name === "tgtLang") {
+      setTgtLang(value);
+    } else {
+      console.log("Unknown");
     }
+  }
 
-    run2();
-  }, []);
-
-  // test();
-  return <></>;
+  return (
+    <div className="container">
+      <h1>Text Translation</h1>
+      <div className="grid">
+        <div>
+          <label htmlFor="srcLang">Source</label>
+          <select
+            name="srcLang"
+            id="srcLang"
+            value={srcLang}
+            onChange={handleSelect}
+          >
+            <option value="en">English</option>
+            <option value="th">Thai</option>
+            <option value="fr">French</option>
+            <option value="es">Spanish</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="tgtLang">Target</label>
+          <select
+            name="tgtLang"
+            id="tgtLang"
+            value={tgtLang}
+            onChange={handleSelect}
+          >
+            <option value="en">English</option>
+            <option value="th">Thai</option>
+            <option value="fr">French</option>
+            <option value="es">Spanish</option>
+          </select>
+        </div>
+      </div>
+      <label htmlFor="input">Input</label>
+      <input
+        id="input"
+        type="text"
+        onChange={handleType}
+        onKeyDown={handleKeyDown}
+        disabled={isLoading}
+      />
+      <button
+        onClick={handleSubmit}
+        aria-busy={isLoading}
+        disabled={isLoading}
+        style={{ marginBottom: "1rem" }}
+      >
+        Submit
+      </button>
+      {modelStatus.modelName && (
+        <div>
+          <kbd
+            aria-busy={modelStatus.status === "progress"}
+            style={{ textTransform: "capitalize" }}
+          >
+            {modelStatus.modelName} ({modelStatus.status}:{modelStatus.progress}
+            %)
+          </kbd>
+        </div>
+      )}
+      {outputText && <article>{outputText}</article>}
+    </div>
+  );
 }
 
 export default App;

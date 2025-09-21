@@ -4,9 +4,10 @@ onmessage = (e) => {
   console.log("Posting message back to main script");
   postMessage("Hi from worker");
 
-  let i = 0;
-  setInterval(() => {
-    postMessage(i);
-    i = i + 1;
-  }, 500);
+  // Send message continuously
+  // let i = 0;
+  // setInterval(() => {
+  //   postMessage(i);
+  //   i = i + 1;
+  // }, 500);
 };

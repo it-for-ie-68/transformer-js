@@ -3,8 +3,8 @@ if (window.Worker) {
   worker.postMessage("Hi from main");
   console.log("Post message to worker");
 
-  // worker.addEventListener("message", (e) => {
-  //   console.log("Receive message from worker");
-  //   console.log(e);
-  // });
+  worker.addEventListener("message", (e) => {
+    console.log("Receive message from worker");
+    console.log(e);
+  });
 }

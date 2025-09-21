@@ -10,11 +10,11 @@ class Model {
   static task = "text-generation" as const;
 
   // -----------------------------------------------------------
-  // static model = "Xenova/distilgpt2";
-  // static modelOptions = { device: "wasm" };
-  // -----------------------------------------------------------
-  static model = "HuggingFaceTB/SmolLM2-135M-Instruct";
+  static model = "Xenova/distilgpt2";
   static modelOptions = { device: "wasm" };
+  // -----------------------------------------------------------
+  // static model = "HuggingFaceTB/SmolLM2-135M-Instruct";
+  // static modelOptions = { device: "wasm" };
   // -----------------------------------------------------------
   // static model = "onnx-community/Phi-3.5-mini-instruct-onnx-web";
   // static modelOptions = { dtype: "q4f16", device: "webgpu" };

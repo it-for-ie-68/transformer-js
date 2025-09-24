@@ -20,14 +20,13 @@ function App() {
   }, []);
 
   function handleType(e: any) {
-    setInputText(e.target.value.trim());
+    setInputText(e.target.value);
   }
 
   async function handleSubmit(e: any) {
     if (!inputText) return;
     setIsLoading(true);
     setOutputText("");
-    setInputText(e.target.value.trim());
     const generator = await load_model();
     const result = await generator("Hi", {
       max_new_tokens: 20, // Limit the length of the generated text
@@ -41,7 +40,12 @@ function App() {
   return (
     <div className="container">
       <h1>Text Generation Test</h1>
-      <input type="text" onChange={handleType} disabled={isLoading} />
+      <input
+        type="text"
+        onChange={handleType}
+        disabled={isLoading}
+        value={inputText}
+      />
       <button
         onClick={handleSubmit}
         aria-busy={isLoading}
